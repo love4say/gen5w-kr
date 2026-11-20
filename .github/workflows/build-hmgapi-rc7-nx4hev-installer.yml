@@ -1,0 +1,63 @@
+name: Prepare official HMG-API rc7 NX4HEV USB installer
+on:
+  push:
+    branches:
+      - build/hmgapi-rc7-nx4hev-usb-20261120
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download, verify and stage official release package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p stage/packages
+          URL="https://github.com/Open-HMG/HMG-API/releases/download/v1.1.0-rc.7/hmgapi-1.1.0-rc.7-nemesis-package.zip"
+          curl -fL --retry 4 --retry-delay 2 "$URL" -o stage/packages/hmgapi.zip
+          printf '%s  %s\n' '16bea991f1c541acccea658f766971fac0b9d41caf34d6ca7523c9007fc41a63' 'stage/packages/hmgapi.zip' | sha256sum -c -
+          test "$(stat -c %s stage/packages/hmgapi.zip)" = 832925
+          unzip -p stage/packages/hmgapi.zip NEMESIS.data | grep -q '^id=hmgapi$'
+          unzip -p stage/packages/hmgapi.zip NEMESIS.data | grep -q '^name=HMG-API$'
+          cat > stage/NEMESIS.data <<'EOT'
+          [nemesis]
+          version=1.1
+          type=list
+
+          [package.0]
+          path=packages/hmgapi.zip
+          name=HMG-API
+          short-desc=HMG-API 1.1.0-rc.7 official core only
+          published=2026-11-20
+          EOT
+          cat > stage/README.txt <<'EOT'
+          OFFICIAL HMG-API 1.1.0-rc.7 - FIRST INSTALL
+          This USB installer contains ONLY the unmodified, SHA-256-verified
+          official HMG-API NEMESIS package.
+          It intentionally EXCLUDES upstream wireless-carplay-aa 2.2.0-rc.8.
+          REQUIREMENT: NEMESIS Manager version 1.16 or newer is installed.
+          1. Unzip this installer zip to the USB stick root (FAT32/exFAT).
+          2. Park, power the head unit stably, plug USB into the car.
+          3. NEMESIS Package Store > select HMG-API > Install.
+          4. Wait for completion; restart head unit, remove USB.
+          5. Confirm HMG-API shows 1.1.0-rc.7. Then use the SEPARATE
+             Korea Projection v10 installer for custom wireless 2.4.6.
+          Avoid selecting/installing the official wireless 2.2.0-rc.8 mod.
+          The new RC has NOT yet been validated on this NX4HEV car.
+          Official source:
+          https://github.com/Open-HMG/HMG-API/releases/tag/v1.1.0-rc.7
+          EOT
+          sha256sum stage/packages/hmgapi.zip
+          find stage -type f -printf '%P %s bytes\n' | sort
+      - name: Publish ready-to-copy NEMESIS USB installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: HMG-API-1.1.0-rc.7-NX4HEV-new-install-USB
+          path: stage/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
